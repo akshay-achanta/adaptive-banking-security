@@ -177,7 +177,7 @@ export const App: React.FC = () => {
         </main>
 
         <footer className="border-t border-slate-900 bg-slate-950/80 py-4 text-center text-xs text-slate-500 font-mono">
-          Adaptive Banking Security Platform • ap-southeast-2 Sydney • Day 2 AI/ML Layer
+          Adaptive Banking Security Platform • ap-southeast-2 Sydney • Enterprise Cloud Security
         </footer>
 
         {/* Telemetry Inspection Modal */}

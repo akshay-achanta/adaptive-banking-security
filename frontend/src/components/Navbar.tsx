@@ -23,11 +23,8 @@ export const Navbar: React.FC<NavbarProps> = ({ health, onOpenNewTransaction }) 
             <div>
               <div className="flex items-center space-x-2">
                 <span className="font-bold tracking-tight text-white text-base">AdaptiveGuard</span>
-                <span className="text-[10px] uppercase font-semibold tracking-wider bg-cyan-950 text-cyan-400 border border-cyan-800/80 px-1.5 py-0.5 rounded">
-                  AI Core • Day 2
-                </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-mono">ap-southeast-2 Sydney • ML Layer</p>
+              <p className="text-[11px] text-slate-400 font-mono">ap-southeast-2 Sydney • Cloud Security</p>
             </div>
           </div>
 
