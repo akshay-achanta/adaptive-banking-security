@@ -122,7 +122,7 @@ jobs:
         run: |
           cd infra
           npm ci
-          npx cdk deploy AdaptiveBankingSecurityStack --require-approval never
+          npx cdk deploy AdaptiveBankingSecurityStack --require-approval never --outputs-file ../cdk-outputs.json
 
       # 2. Build & Push Backend Docker Image to Amazon ECR
       - name: Log in to Amazon ECR
@@ -149,13 +149,14 @@ jobs:
 
       # 4. Build & Upload Frontend to Existing S3 Bucket
       - name: Build production frontend bundle
-        env:
-          VITE_API_BASE_URL: https://${{ env.EXISTING_CLOUDFRONT_DOMAIN }}/api
-          VITE_COGNITO_USER_POOL_ID: ${{ env.EXISTING_COGNITO_USER_POOL_ID }}
-          VITE_COGNITO_APP_CLIENT_ID: ${{ env.EXISTING_COGNITO_APP_CLIENT_ID }}
-          VITE_AWS_REGION: ${{ env.AWS_REGION }}
-          VITE_CLOUDFRONT_DOMAIN: ${{ env.EXISTING_CLOUDFRONT_DOMAIN }}
         run: |
+          ALB_URL=$(node -e "try { const o = require('./cdk-outputs.json'); console.log(o.AdaptiveBankingSecurityStack.ApiEndpointUrl || ''); } catch(e) { console.log(''); }")
+          echo "Discovered ALB Backend URL: ${ALB_URL}"
+          export VITE_API_BASE_URL="${ALB_URL:-https://${{ env.EXISTING_CLOUDFRONT_DOMAIN }}/api}"
+          export VITE_COGNITO_USER_POOL_ID="${{ env.EXISTING_COGNITO_USER_POOL_ID }}"
+          export VITE_COGNITO_APP_CLIENT_ID="${{ env.EXISTING_COGNITO_APP_CLIENT_ID }}"
+          export VITE_AWS_REGION="${{ env.AWS_REGION }}"
+          export VITE_CLOUDFRONT_DOMAIN="${{ env.EXISTING_CLOUDFRONT_DOMAIN }}"
           cd frontend
           npm ci
           npm run build
