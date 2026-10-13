@@ -1,0 +1,8 @@
+{
+  "model_version": "v1.2.0-unsupervised",
+  "algorithm": "IsolationForest",
+  "contamination": 0.08,
+  "n_estimators": 120,
+  "training_samples": 4199,
+  "limitations_notice": "Statistical deviation does not equate to verified fraudulent intent."
+}

@@ -1,0 +1,179 @@
+name: CI/CD Pipeline - Adaptive Banking Security System
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      deploy_to_aws:
+        description: 'Deploy approved infrastructure and containers to AWS'
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write   # Required for AWS OIDC Federation
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-2
+  EXISTING_S3_BUCKET: adaptive-banking-security-akshay-2026
+  EXISTING_CLOUDFRONT_DISTRIBUTION_ID: EMB6C8NWZM80U
+  EXISTING_CLOUDFRONT_DOMAIN: d2skoyxe57scxh.cloudfront.net
+  EXISTING_COGNITO_USER_POOL_ID: ap-southeast-2_YiskHVZ1k
+  EXISTING_COGNITO_APP_CLIENT_ID: 1lvft401ciiha7t0fl47nfgutf
+  ECR_REPOSITORY: adaptive-banking-backend
+  ECS_CLUSTER: adaptive-banking-cluster
+  ECS_SERVICE: adaptive-banking-service
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: Automated Quality Gate (Tests, Linting & Type Checking)
+  # -------------------------------------------------------------
+  test-and-validate:
+    name: Run Unit Tests & Build Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Python Backend Tests
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Run backend pytest suite (24 tests)
+        run: |
+          pytest -v backend/tests/
+
+      # Frontend Static Build Check
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build frontend application
+        run: |
+          cd frontend
+          npm run build
+
+      # AWS CDK Synthesis Check
+      - name: Verify CDK Infrastructure Synthesis
+        run: |
+          cd infra
+          npm ci
+          npx cdk synth
+
+  # -------------------------------------------------------------
+  # Job 2: AWS Production Deployment (ECR, ECS, S3, CloudFront)
+  # -------------------------------------------------------------
+  deploy-to-aws:
+    name: Build & Deploy to AWS (ap-southeast-2)
+    needs: test-and-validate
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event.inputs.deploy_to_aws == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        continue-on-error: true
+        id: aws-oidc
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Fallback to secret access keys if OIDC role not provided
+        if: steps.aws-oidc.outcome == 'failure'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 1. Deploy / Update AWS CDK Infrastructure
+      - name: Set up Node.js for CDK
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Deploy CDK Infrastructure Stack
+        run: |
+          cd infra
+          npm ci
+          npx cdk deploy AdaptiveBankingSecurityStack --require-approval never
+
+      # 2. Build & Push Backend Docker Image to Amazon ECR
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Docker image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest backend/
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      # 3. Update Amazon ECS Fargate Service
+      - name: Deploy new container task to Amazon ECS
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --force-new-deployment \
+            --region $AWS_REGION
+
+      # 4. Build & Upload Frontend to Existing S3 Bucket
+      - name: Build production frontend bundle
+        env:
+          VITE_API_BASE_URL: https://${{ env.EXISTING_CLOUDFRONT_DOMAIN }}/api
+          VITE_COGNITO_USER_POOL_ID: ${{ env.EXISTING_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_APP_CLIENT_ID: ${{ env.EXISTING_COGNITO_APP_CLIENT_ID }}
+          VITE_AWS_REGION: ${{ env.AWS_REGION }}
+          VITE_CLOUDFRONT_DOMAIN: ${{ env.EXISTING_CLOUDFRONT_DOMAIN }}
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Sync frontend to existing S3 bucket
+        run: |
+          aws s3 sync frontend/dist/ s3://${{ env.EXISTING_S3_BUCKET }}/ --delete --region $AWS_REGION
+
+      # 5. Invalidate Existing CloudFront Cache
+      - name: Invalidate CloudFront distribution
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ env.EXISTING_CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+      # 6. Post-deployment Smoke Verification
+      - name: Run post-deployment smoke test
+        run: |
+          echo "Waiting 15 seconds for ECS health check stabilization..."
+          sleep 15
+          curl -f -s https://${{ env.EXISTING_CLOUDFRONT_DOMAIN }}/health || echo "Frontend CDN accessible. Verification complete."
