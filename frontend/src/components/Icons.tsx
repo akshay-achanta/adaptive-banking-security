@@ -50,6 +50,12 @@ export const Key = createIcon(
     <circle cx="7.5" cy="16.5" r="5.5" />
   </>
 );
+export const Copy = createIcon(
+  <>
+    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+  </>
+);
 export const Server = createIcon(
   <>
     <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />

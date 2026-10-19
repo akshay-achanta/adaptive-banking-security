@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     COGNITO_APP_CLIENT_ID: str = "1lvft401ciiha7t0fl47nfgutf"
     COGNITO_REGION: str = "ap-southeast-2"
     REQUIRE_AUTH: bool = False
+    JWT_SECRET: str = "adaptive-banking-security-jwt-secret-2026"
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -17,8 +18,8 @@ cognito_jwt_scheme = HTTPBearer(
     scheme_name="CognitoJWTBearer",
     bearerFormat="JWT",
     description=(
-        "Enter your AWS Cognito JWT token (ID token or Access token).\n\n"
-        "💡 **Local Development / Testing**: Enter `demo-token` to authenticate as demo customer."
+        "Enter your AWS Cognito JWT token (ID token or Access token) or demo JWT.\n\n"
+        "💡 **Quick Demo**: Sign in via `/api/auth/login` with demo credentials or copy the token from `/api/auth/demo-token`."
     ),
     auto_error=False,
 )
@@ -28,6 +29,33 @@ def set_cognito_jwks_cache(jwks: Optional[dict]) -> None:
     """Helper for testing or resetting cached Cognito JWKS keys."""
     global _jwks_cache
     _jwks_cache = jwks
+
+
+def create_demo_jwt(
+    user_id: str = "demo-user-001",
+    email: str = "demo.banker@adaptive-security.io",
+    role: str = "customer",
+    expires_in_hours: int = 48,
+) -> str:
+    """
+    Generate a genuine, signed JWT with valid header and payload claims.
+    Can be used seamlessly across frontend, API requests, and Swagger UI.
+    """
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(hours=expires_in_hours)
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "role": role,
+        "cognito:groups": [role],
+        "token_use": "access",
+        "client_id": settings.COGNITO_APP_CLIENT_ID,
+        "iss": f"https://cognito-idp.{settings.COGNITO_REGION}.amazonaws.com/{settings.COGNITO_USER_POOL_ID}",
+        "iat": int(now.timestamp()),
+        "exp": int(expire.timestamp()),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
 
 
 async def get_cognito_jwks() -> dict:
@@ -57,9 +85,37 @@ async def get_cognito_jwks() -> dict:
 
 def verify_cognito_token(token: str, jwks: dict, settings) -> dict:
     """
-    Verify Cognito JWT cryptographic signature, expiration, issuer, and claims.
-    Validates both Cognito ID tokens and Access tokens.
+    Verify JWT cryptographic signature, expiration, issuer, and claims.
+    Supports both local demonstration JWTs (HS256) and live Cognito JWTs (RS256).
     """
+    # 1. Try decoding as local demo JWT (HS256)
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_signature": True, "verify_exp": True},
+        )
+        return payload
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Demo session token has expired. Please sign in again at /api/auth/login.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except JWTError:
+        pass
+
+    # 2. Inspect unverified headers to locate matching key ID (kid) for Cognito RS256
+    try:
+        unverified_headers = jwt.get_unverified_header(token)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or malformed JWT token format. Please sign in at /api/auth/login or provide a valid Cognito JWT.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     expected_issuer = (
         f"https://cognito-idp.{settings.COGNITO_REGION}.amazonaws.com/"
         f"{settings.COGNITO_USER_POOL_ID}"
@@ -69,16 +125,6 @@ def verify_cognito_token(token: str, jwks: dict, settings) -> dict:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unable to verify Cognito token: public keys unavailable",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # 1. Inspect unverified headers to locate matching key ID (kid)
-    try:
-        unverified_headers = jwt.get_unverified_header(token)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Malformed JWT header: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

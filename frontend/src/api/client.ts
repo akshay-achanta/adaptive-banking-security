@@ -39,6 +39,33 @@ class ApiClient {
     return headers;
   }
 
+  async login(email?: string, password?: string): Promise<{ access_token: string; user: { user_id: string; email: string; role: string } }> {
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email || 'demo.banker@adaptive-security.io',
+        password: password || 'AdaptiveDemo2026!',
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Login failed with status: ${res.status}`);
+    }
+    const data = await res.json();
+    localStorage.removeItem('cognito_explicit_logout');
+    localStorage.setItem('cognito_access_token', data.access_token);
+    return data;
+  }
+
+  async getDemoToken(): Promise<{ token: string }> {
+    const res = await fetch(`${BASE_URL}/api/auth/demo-token`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch demo token: ${res.status}`);
+    }
+    return res.json();
+  }
+
   async getHealth(): Promise<HealthResponse> {
     const res = await fetch(`${BASE_URL}/health`);
     if (!res.ok) {
