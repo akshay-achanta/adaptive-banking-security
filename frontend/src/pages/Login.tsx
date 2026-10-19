@@ -16,9 +16,10 @@ export const Login: React.FC<LoginPageProps> = ({ health }) => {
   const currentToken = localStorage.getItem('cognito_access_token');
 
   const handleSetMockToken = () => {
-    localStorage.setItem('cognito_access_token', 'mock-developer-session-token');
+    localStorage.removeItem('cognito_explicit_logout');
+    localStorage.setItem('cognito_access_token', 'demo-token');
     setStatusMsg({
-      text: 'Local developer session activated with demo-user-001 credentials.',
+      text: 'Demonstration session activated with demo-user-001 credentials.',
       type: 'success',
     });
   };
@@ -27,9 +28,11 @@ export const Login: React.FC<LoginPageProps> = ({ health }) => {
     e.preventDefault();
     if (!tokenInput.trim()) {
       localStorage.removeItem('cognito_access_token');
+      localStorage.setItem('cognito_explicit_logout', 'true');
       setStatusMsg({ text: 'Access token cleared. Using default dev session.', type: 'info' });
       return;
     }
+    localStorage.removeItem('cognito_explicit_logout');
     localStorage.setItem('cognito_access_token', tokenInput.trim());
     setStatusMsg({
       text: 'Cognito JWT token saved. Requests will include Authorization Bearer header.',
@@ -39,7 +42,8 @@ export const Login: React.FC<LoginPageProps> = ({ health }) => {
 
   const handleClearToken = () => {
     localStorage.removeItem('cognito_access_token');
-    setStatusMsg({ text: 'Session token cleared.', type: 'info' });
+    localStorage.setItem('cognito_explicit_logout', 'true');
+    setStatusMsg({ text: 'Session token cleared (Unauthenticated 401 mode active).', type: 'info' });
   };
 
   return (

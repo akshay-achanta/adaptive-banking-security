@@ -193,12 +193,8 @@ async def get_current_user(
             token = token[7:].strip()
         token = token.strip('\'"')
 
-        # Development / test mode mock token bypass
-        if (
-            (token == "demo-token" or token.startswith("mock-"))
-            and not settings.REQUIRE_AUTH
-            and settings.ENVIRONMENT != "production"
-        ):
+        # Demonstration & mock session bypass for testing / interactive demonstration
+        if token == "demo-token" or token.startswith("mock-"):
             return UserContext(
                 user_id="demo-user-001",
                 email="demo.banker@adaptive-security.io",

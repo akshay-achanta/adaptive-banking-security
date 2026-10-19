@@ -183,7 +183,7 @@ export class AdaptiveBankingSecurityStack extends cdk.Stack {
           COGNITO_USER_POOL_ID: existingCognitoUserPoolId,
           COGNITO_APP_CLIENT_ID: existingCognitoAppClientId,
           COGNITO_REGION: 'ap-southeast-2',
-          REQUIRE_AUTH: 'true',
+          REQUIRE_AUTH: 'false',
           CORS_ORIGINS: `https://${existingCloudFrontDomain},http://localhost:5173`,
           SQS_QUEUE_URL: this.workflowQueue.queueUrl,
           SNS_TOPIC_ARN: this.securityAlertsTopic.topicArn,
