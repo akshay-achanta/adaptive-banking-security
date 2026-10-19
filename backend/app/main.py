@@ -17,7 +17,14 @@ settings = get_settings()
 
 app = FastAPI(
     title="Adaptive Banking Security API",
-    description="Adaptive Banking Security telemetry, machine learning intelligence, policy workflow engine, and DynamoDB audit trail.",
+    description=(
+        "Adaptive Banking Security telemetry, machine learning intelligence, "
+        "policy workflow engine, and DynamoDB audit trail.\n\n"
+        "### Authentication\n"
+        "Protected endpoints require an AWS Cognito JWT Bearer token (ID token or Access token) "
+        "issued by the Cognito User Pool (`ap-southeast-2_YiskHVZ1k`).\n"
+        "Click the **Authorize** button at the top right to authenticate in Swagger UI."
+    ),
     version="1.3.0",
 )
 

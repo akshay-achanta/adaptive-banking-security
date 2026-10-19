@@ -41,6 +41,8 @@ dist/
 # AWS CDK
 cdk.out/
 infra/cdk.out/
+cdk.context.json
+infra/cdk.context.json
 
 # Environment variables
 .env

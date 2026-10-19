@@ -18,3 +18,21 @@ async def get_auth_config():
         "auth_enforced": settings.REQUIRE_AUTH,
         "environment": settings.ENVIRONMENT,
     }
+
+
+@router.get("/demo-token")
+async def get_demo_token():
+    """
+    Supplies a sample token for Swagger UI authorization and local testing.
+    Copy the token value below and paste it into Swagger's 'Authorize' modal.
+    """
+    return {
+        "token": "demo-token",
+        "type": "Bearer",
+        "instructions": "Copy 'demo-token', click the green 'Authorize' button at the top right of this page, paste it into the Value box, and click Authorize.",
+        "user_context": {
+            "user_id": "demo-user-001",
+            "email": "demo.banker@adaptive-security.io",
+            "role": "customer",
+        },
+    }
