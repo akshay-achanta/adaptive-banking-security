@@ -123,10 +123,17 @@ export class AdaptiveBankingSecurityStack extends cdk.Stack {
       displayName: 'Adaptive Banking Security High-Risk Alerts',
     });
 
-    // 5. VPC & Networking for ECS Fargate
+    // 5. VPC & Networking for ECS Fargate (Cost-optimized: 0 NAT Gateways)
     const vpc = new ec2.Vpc(this, 'AdaptiveBankingVpc', {
       maxAzs: 2,
-      natGateways: 1,
+      natGateways: 0,
+      subnetConfiguration: [
+        {
+          cidrMask: 24,
+          name: 'Public',
+          subnetType: ec2.SubnetType.PUBLIC,
+        },
+      ],
     });
 
     // 7. ECS Cluster
@@ -151,6 +158,10 @@ export class AdaptiveBankingSecurityStack extends cdk.Stack {
       memoryLimitMiB: 1024,
       desiredCount: 1,
       publicLoadBalancer: true,
+      assignPublicIp: true,
+      taskSubnets: {
+        subnetType: ec2.SubnetType.PUBLIC,
+      },
       taskImageOptions: {
         image: ecs.ContainerImage.fromAsset(path.join(__dirname, '../../backend')),
         containerPort: 8000,
