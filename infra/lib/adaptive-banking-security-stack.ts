@@ -1,8 +1,8 @@
+import * as path from 'path';
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
-import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ecsPatterns from 'aws-cdk-lib/aws-ecs-patterns';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
@@ -12,7 +12,6 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 
 export class AdaptiveBankingSecurityStack extends cdk.Stack {
-  public readonly ecrRepo: ecr.Repository;
   public readonly albFargateService: ecsPatterns.ApplicationLoadBalancedFargateService;
   public readonly transactionsTable: dynamodb.Table;
   public readonly policiesTable: dynamodb.Table;
@@ -124,14 +123,7 @@ export class AdaptiveBankingSecurityStack extends cdk.Stack {
       displayName: 'Adaptive Banking Security High-Risk Alerts',
     });
 
-    // 5. Amazon ECR Repository for Backend Container Images
-    this.ecrRepo = new ecr.Repository(this, 'BackendEcrRepo', {
-      repositoryName: 'adaptive-banking-backend',
-      imageScanOnPush: true,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-    });
-
-    // 6. VPC & Networking for ECS Fargate
+    // 5. VPC & Networking for ECS Fargate
     const vpc = new ec2.Vpc(this, 'AdaptiveBankingVpc', {
       maxAzs: 2,
       natGateways: 1,
@@ -160,7 +152,7 @@ export class AdaptiveBankingSecurityStack extends cdk.Stack {
       desiredCount: 1,
       publicLoadBalancer: true,
       taskImageOptions: {
-        image: ecs.ContainerImage.fromEcrRepository(this.ecrRepo, 'latest'),
+        image: ecs.ContainerImage.fromAsset(path.join(__dirname, '../../backend')),
         containerPort: 8000,
         enableLogging: true,
         logDriver: ecs.LogDrivers.awsLogs({
@@ -169,6 +161,7 @@ export class AdaptiveBankingSecurityStack extends cdk.Stack {
         }),
         environment: {
           ENVIRONMENT: 'production',
+          USE_MOCK_DB: 'false',
           AWS_REGION: 'ap-southeast-2',
           DYNAMODB_TABLE_NAME: this.transactionsTable.tableName,
           DYNAMODB_POLICIES_TABLE: this.policiesTable.tableName,
@@ -226,12 +219,7 @@ export class AdaptiveBankingSecurityStack extends cdk.Stack {
       alarmDescription: 'Alert if backend target produces 5 or more 5XX errors in 2 minutes',
     });
 
-    // 12. Deployment Outputs
-    new cdk.CfnOutput(this, 'EcrRepositoryUri', {
-      value: this.ecrRepo.repositoryUri,
-      description: 'Amazon ECR Repository URI for backend Docker container image',
-      exportName: 'AdaptiveBankingEcrRepoUri',
-    });
+    // 11. Deployment Outputs
 
     new cdk.CfnOutput(this, 'ApiLoadBalancerDns', {
       value: this.albFargateService.loadBalancer.loadBalancerDnsName,
