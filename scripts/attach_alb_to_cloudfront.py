@@ -56,13 +56,40 @@ def configure_cloudfront():
     else:
         print(f"[+] ALB origin already present in distribution.")
 
-    # 2. Add Cache Behaviors for /api/*, /health, /docs, /openapi.json
+    # 2. Look up AWS Managed Policies dynamically from the live CloudFront API
+    print("[*] Resolving managed cache and origin request policies dynamically...")
+    caching_disabled_policy_id = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+    try:
+        cache_policies = client.list_cache_policies(Type="managed")
+        for cp in cache_policies.get("CachePolicyList", {}).get("Items", []):
+            name = cp.get("CachePolicy", {}).get("CachePolicyConfig", {}).get("Name", "")
+            if name == "Managed-CachingDisabled":
+                caching_disabled_policy_id = cp["CachePolicy"]["Id"]
+                print(f"[+] Using Managed CachePolicy '{name}': {caching_disabled_policy_id}")
+                break
+    except Exception as e:
+        print(f"[!] Warning fetching cache policies: {e}")
+
+    origin_req_policy_id = None
+    try:
+        req_policies = client.list_origin_request_policies(Type="managed")
+        items_list = req_policies.get("OriginRequestPolicyList", {}).get("Items", [])
+        # Prefer AllViewerExceptHostHeader, then AllViewer, then UserAgentRefererHeaders
+        for target_name in ["AllViewerExceptHostHeader", "AllViewer", "UserAgentRefererHeaders"]:
+            for p in items_list:
+                name = p.get("OriginRequestPolicy", {}).get("OriginRequestPolicyConfig", {}).get("Name", "")
+                if target_name in name:
+                    origin_req_policy_id = p["OriginRequestPolicy"]["Id"]
+                    print(f"[+] Using Managed OriginRequestPolicy '{name}': {origin_req_policy_id}")
+                    break
+            if origin_req_policy_id:
+                break
+    except Exception as e:
+        print(f"[!] Warning fetching origin request policies: {e}")
+
+    # 3. Add Cache Behaviors for /api/*, /health, /docs, /openapi.json
     cache_behaviors = config.get("CacheBehaviors", {})
     items = cache_behaviors.get("Items", [])
-
-    # AWS Managed Policies
-    CACHING_DISABLED_POLICY_ID = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
-    ORIGIN_REQUEST_POLICY_ID = "b680b373-e50e-47ff-b80e-3fb298ac37da"
 
     paths_to_route = ["/api/*", "/health", "/docs", "/openapi.json"]
     default_behavior = config.get("DefaultCacheBehavior", {})
@@ -90,8 +117,11 @@ def configure_cloudfront():
         behavior_def["FieldLevelEncryptionId"] = ""
 
         if uses_cache_policy:
-            behavior_def["CachePolicyId"] = CACHING_DISABLED_POLICY_ID
-            behavior_def["OriginRequestPolicyId"] = ORIGIN_REQUEST_POLICY_ID
+            behavior_def["CachePolicyId"] = caching_disabled_policy_id
+            if origin_req_policy_id:
+                behavior_def["OriginRequestPolicyId"] = origin_req_policy_id
+            else:
+                behavior_def.pop("OriginRequestPolicyId", None)
             behavior_def.pop("ForwardedValues", None)
             behavior_def.pop("MinTTL", None)
             behavior_def.pop("DefaultTTL", None)
@@ -139,7 +169,7 @@ def configure_cloudfront():
         "Items": items,
     }
 
-    # 3. Update Distribution
+    # 4. Update Distribution
     print(f"[*] Updating CloudFront distribution {DISTRIBUTION_ID}...")
     update_resp = client.update_distribution(
         DistributionConfig=config,
