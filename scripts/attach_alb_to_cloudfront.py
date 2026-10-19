@@ -10,6 +10,7 @@ This completely resolves browser "Mixed Content" errors.
 """
 
 import sys
+import copy
 import boto3
 
 DISTRIBUTION_ID = "EMB6C8NWZM80U"
@@ -26,7 +27,7 @@ def configure_cloudfront():
 
     # 1. Check or add ALB Origin
     origins = config.get("Origins", {}).get("Items", [])
-    alb_origin_exists = any(o["Id"] == ORIGIN_ID or o["DomainName"] == ALB_DNS for o in origins)
+    alb_origin_exists = any(o.get("Id") == ORIGIN_ID or o.get("DomainName") == ALB_DNS for o in origins)
 
     if not alb_origin_exists:
         print(f"[*] Adding ALB origin: {ALB_DNS}")
@@ -60,33 +61,71 @@ def configure_cloudfront():
     items = cache_behaviors.get("Items", [])
 
     # AWS Managed Policies
-    # CachingDisabled: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-    # AllViewerExceptHostHeader: b680b373-e50e-47ff-b80e-3fb298ac37da
     CACHING_DISABLED_POLICY_ID = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
     ORIGIN_REQUEST_POLICY_ID = "b680b373-e50e-47ff-b80e-3fb298ac37da"
 
     paths_to_route = ["/api/*", "/health", "/docs", "/openapi.json"]
+    default_behavior = config.get("DefaultCacheBehavior", {})
+    uses_cache_policy = "CachePolicyId" in default_behavior
 
     for path in paths_to_route:
         # Check if behavior already exists
         existing_idx = next((i for i, b in enumerate(items) if b["PathPattern"] == path), None)
-        behavior_def = {
-            "PathPattern": path,
-            "TargetOriginId": ORIGIN_ID,
-            "ViewerProtocolPolicy": "redirect-to-https",
-            "AllowedMethods": {
-                "Quantity": 7,
-                "Items": ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
-                "CachedMethods": {
-                    "Quantity": 2,
-                    "Items": ["GET", "HEAD"],
-                },
+        
+        # Clone default behavior to inherit all required CloudFront fields
+        behavior_def = copy.deepcopy(default_behavior)
+        behavior_def["PathPattern"] = path
+        behavior_def["TargetOriginId"] = ORIGIN_ID
+        behavior_def["ViewerProtocolPolicy"] = "redirect-to-https"
+        behavior_def["AllowedMethods"] = {
+            "Quantity": 7,
+            "Items": ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
+            "CachedMethods": {
+                "Quantity": 2,
+                "Items": ["GET", "HEAD"],
             },
-            "SmoothStreaming": False,
-            "Compress": True,
-            "CachePolicyId": CACHING_DISABLED_POLICY_ID,
-            "OriginRequestPolicyId": ORIGIN_REQUEST_POLICY_ID,
         }
+        behavior_def["SmoothStreaming"] = False
+        behavior_def["Compress"] = True
+        behavior_def["FieldLevelEncryptionId"] = ""
+
+        if uses_cache_policy:
+            behavior_def["CachePolicyId"] = CACHING_DISABLED_POLICY_ID
+            behavior_def["OriginRequestPolicyId"] = ORIGIN_REQUEST_POLICY_ID
+            behavior_def.pop("ForwardedValues", None)
+            behavior_def.pop("MinTTL", None)
+            behavior_def.pop("DefaultTTL", None)
+            behavior_def.pop("MaxTTL", None)
+        else:
+            behavior_def["ForwardedValues"] = {
+                "QueryString": True,
+                "Cookies": {"Forward": "all"},
+                "Headers": {
+                    "Quantity": 8,
+                    "Items": [
+                        "Authorization",
+                        "Accept",
+                        "Content-Type",
+                        "Origin",
+                        "Referer",
+                        "User-Agent",
+                        "X-Forwarded-For",
+                        "X-Requested-With",
+                    ],
+                },
+                "QueryStringCacheKeys": {"Quantity": 0},
+            }
+            behavior_def["MinTTL"] = 0
+            behavior_def["DefaultTTL"] = 0
+            behavior_def["MaxTTL"] = 0
+            behavior_def.pop("CachePolicyId", None)
+            behavior_def.pop("OriginRequestPolicyId", None)
+
+        # Ensure required CloudFront keys are always present
+        if "LambdaFunctionAssociations" not in behavior_def:
+            behavior_def["LambdaFunctionAssociations"] = {"Quantity": 0}
+        if "FunctionAssociations" not in behavior_def:
+            behavior_def["FunctionAssociations"] = {"Quantity": 0}
 
         if existing_idx is not None:
             print(f"[*] Updating existing behavior for {path}")
@@ -109,7 +148,7 @@ def configure_cloudfront():
     )
     status = update_resp.get("Distribution", {}).get("Status")
     print(f"[✓] CloudFront distribution successfully updated! Current status: {status}")
-    print("[*] CloudFront is now deploying changes to edge locations. This usually takes 1-2 minutes.")
+    print("[*] CloudFront is now deploying changes to edge locations.")
 
 if __name__ == "__main__":
     try:
