@@ -42,6 +42,8 @@ class SecurityPolicy(BaseModel):
     permitted_end_hour: int = Field(default=23, ge=0, le=23, description="Permitted transaction end hour (0-23 UTC)")
     restricted_categories: List[TransactionCategory] = Field(default_factory=list, description="Categories prohibited by user policy")
     verification_risk_threshold: int = Field(default=65, ge=0, le=100, description="Risk score threshold requiring step-up approval")
+    cooling_off_period_hours: int = Field(default=24, ge=1, le=168, description="Cooling-off safety window in hours for new beneficiaries")
+    new_beneficiary_limit_cents: int = Field(default=100000, description="Max amount in cents ($1,000.00) without 2FA during cooling-off")
     notification_channels: List[str] = Field(default=["IN_APP"], description="Channels: IN_APP, EMAIL, SMS")
     currency: str = Field(default="USD", min_length=3, max_length=3)
     timezone: str = Field(default="UTC")
@@ -54,6 +56,8 @@ class SecurityPolicyUpdate(BaseModel):
     permitted_end_hour: Optional[int] = Field(default=None, ge=0, le=23)
     restricted_categories: Optional[List[TransactionCategory]] = None
     verification_risk_threshold: Optional[int] = Field(default=None, ge=0, le=100)
+    cooling_off_period_hours: Optional[int] = Field(default=None, ge=1, le=168)
+    new_beneficiary_limit: Optional[float] = Field(default=None, gt=0)
     notification_channels: Optional[List[str]] = None
 
 
@@ -160,6 +164,19 @@ class AuditEvent(BaseModel):
 
 # --- Core Transaction Schemas ---
 
+class RiskFactor(BaseModel):
+    factor: str
+    points: int
+    severity: str = "INFO"  # INFO, LOW, MEDIUM, HIGH, CRITICAL
+    description: str
+
+
+class ReportRecipientRequest(BaseModel):
+    recipient: str = Field(..., min_length=2, max_length=100)
+    reason: str = Field(..., min_length=3, max_length=200)
+    details: Optional[str] = Field(default=None, max_length=500)
+
+
 class TransactionCreate(BaseModel):
     amount: float = Field(..., gt=0, description="Transaction amount in USD, must be greater than zero")
     currency: str = Field(default="USD", min_length=3, max_length=3)
@@ -168,7 +185,8 @@ class TransactionCreate(BaseModel):
     notes: Optional[str] = Field(default=None, max_length=250)
     idempotency_key: Optional[str] = Field(default=None, max_length=100)
 
-    # Simulation & Adaptive Risk attributes
+    # Simulation, New Beneficiary & Adaptive Risk attributes
+    is_new_beneficiary: bool = Field(default=False, description="Flag indicating recipient was recently added as a new beneficiary")
     is_unusual_location: bool = Field(default=False)
     is_new_device: bool = Field(default=False)
     ip_address: Optional[str] = Field(default="127.0.0.1")
@@ -187,6 +205,9 @@ class Transaction(BaseModel):
     risk_level: RiskLevel
     risk_score: int = Field(..., ge=0, le=100)
     risk_reasons: List[str] = Field(default_factory=list)
+    risk_factors: List[Dict[str, Any]] = Field(default_factory=list, description="Structured explainable risk score breakdown factors")
+    is_new_beneficiary: bool = Field(default=False)
+    cooling_off_active: bool = Field(default=False)
     created_at: str
     updated_at: Optional[str] = None
     notes: Optional[str] = None

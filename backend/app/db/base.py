@@ -133,3 +133,12 @@ class BaseRepository(ABC):
     async def list_audit_events(self, user_id: str, limit: int = 50) -> List[AuditEvent]:
         """Retrieve recent security audit logs."""
         pass
+
+    # --- Feature 1: New Beneficiary & Scam Reporting ---
+    @abstractmethod
+    async def report_suspicious_recipient(
+        self, user: UserContext, recipient: str, reason: str, details: Optional[str] = None
+    ) -> dict:
+        """Customer reporting of suspicious recipient/potential scam."""
+        pass
+

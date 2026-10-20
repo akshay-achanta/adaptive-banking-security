@@ -16,6 +16,8 @@ import {
   ScheduledTransactionCreatePayload,
   NotificationItem,
   AuditEvent,
+  ReportRecipientPayload,
+  ReportRecipientResponse,
 } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined 
@@ -124,6 +126,19 @@ class ApiClient {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(err.detail || 'Failed to simulate transaction');
+    }
+    return res.json();
+  }
+
+  async reportRecipient(payload: ReportRecipientPayload): Promise<ReportRecipientResponse> {
+    const res = await fetch(`${BASE_URL}/api/transactions/report-recipient`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || 'Failed to submit suspicious recipient report');
     }
     return res.json();
   }
@@ -318,3 +333,4 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+export const apiClient = api;

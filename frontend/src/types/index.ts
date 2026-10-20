@@ -23,6 +23,25 @@ export interface TransactionMetadata {
   [key: string]: any;
 }
 
+export interface RiskFactor {
+  factor: string;
+  points: number;
+  severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  description: string;
+}
+
+export interface ReportRecipientPayload {
+  recipient: string;
+  reason: string;
+  details?: string;
+}
+
+export interface ReportRecipientResponse {
+  status: string;
+  recipient: string;
+  message: string;
+}
+
 export interface Transaction {
   id: string;
   user_id: string;
@@ -35,6 +54,9 @@ export interface Transaction {
   risk_level: RiskLevel;
   risk_score: number;
   risk_reasons: string[];
+  risk_factors?: RiskFactor[];
+  is_new_beneficiary?: boolean;
+  cooling_off_active?: boolean;
   created_at: string;
   notes?: string;
   metadata?: TransactionMetadata;
@@ -49,6 +71,7 @@ export interface TransactionCreatePayload {
   notes?: string;
   is_unusual_location: boolean;
   is_new_device: boolean;
+  is_new_beneficiary?: boolean;
   ip_address?: string;
   device_name?: string;
   idempotency_key?: string;
@@ -116,6 +139,7 @@ export interface RiskAssessmentDetails {
   anomaly_score: number;
   model_version: string;
   assessment_reasons: string[];
+  risk_factors?: RiskFactor[];
   requires_verification: boolean;
   policy_override_applied: boolean;
   status: TransactionStatus;

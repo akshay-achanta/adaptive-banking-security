@@ -9,6 +9,7 @@ from app.models import (
     TransactionCreate,
     TransactionListResponse,
     UserContext,
+    ReportRecipientRequest,
 )
 from app.ml.risk_service import get_risk_service, HybridRiskService
 
@@ -47,6 +48,24 @@ async def list_transactions(
         page=page,
         page_size=page_size,
         total_pages=total_pages,
+    )
+
+
+@router.post("/report-recipient", status_code=status.HTTP_200_OK)
+async def report_suspicious_recipient(
+    payload: ReportRecipientRequest,
+    user: UserContext = Depends(get_current_user),
+    repo: BaseRepository = Depends(get_repository),
+):
+    """
+    Report a recipient as suspicious, scam, or unverified.
+    Logs to security audit trail and dispatches an instant protection alert.
+    """
+    return await repo.report_suspicious_recipient(
+        user=user,
+        recipient=payload.recipient,
+        reason=payload.reason,
+        details=payload.details,
     )
 
 

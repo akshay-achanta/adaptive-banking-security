@@ -9,6 +9,7 @@ import { SecurityWorkflow } from './pages/SecurityWorkflow';
 import { Login } from './pages/Login';
 import { TransactionModal } from './components/TransactionModal';
 import { NewTransactionModal } from './components/NewTransactionModal';
+import { ReportRecipientModal } from './components/ReportRecipientModal';
 import { api } from './api/client';
 import {
   Transaction,
@@ -31,6 +32,8 @@ export const App: React.FC = () => {
   // Modals state
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [isNewTxModalOpen, setIsNewTxModalOpen] = useState<boolean>(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
+  const [reportingRecipient, setReportingRecipient] = useState<string>('');
 
   // Fetch system health
   const fetchHealth = useCallback(async () => {
@@ -181,13 +184,28 @@ export const App: React.FC = () => {
         </footer>
 
         {/* Telemetry Inspection Modal */}
-        <TransactionModal transaction={selectedTx} onClose={() => setSelectedTx(null)} />
+        <TransactionModal
+          transaction={selectedTx}
+          onClose={() => setSelectedTx(null)}
+          onReportRecipient={(recip) => {
+            setReportingRecipient(recip);
+            setIsReportModalOpen(true);
+          }}
+        />
 
         {/* Simulate Transaction Modal */}
         <NewTransactionModal
           isOpen={isNewTxModalOpen}
           onClose={() => setIsNewTxModalOpen(false)}
           onSubmit={handleCreateTransaction}
+        />
+
+        {/* Report Suspicious Recipient Modal */}
+        <ReportRecipientModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          initialRecipient={reportingRecipient}
+          onSuccess={() => refreshAll()}
         />
       </div>
     </BrowserRouter>

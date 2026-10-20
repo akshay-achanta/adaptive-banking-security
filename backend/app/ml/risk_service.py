@@ -29,6 +29,7 @@ class RiskAssessmentResult:
         requires_verification: bool,
         policy_override_applied: bool,
         status: TransactionStatus,
+        risk_factors: Optional[List[Dict[str, Any]]] = None,
     ):
         self.risk_score = risk_score
         self.risk_probability = risk_probability
@@ -41,6 +42,7 @@ class RiskAssessmentResult:
         self.requires_verification = requires_verification
         self.policy_override_applied = policy_override_applied
         self.status = status
+        self.risk_factors = risk_factors or []
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -52,10 +54,12 @@ class RiskAssessmentResult:
             "anomaly_score": round(self.anomaly_score, 4),
             "model_version": self.model_version,
             "assessment_reasons": self.assessment_reasons,
+            "risk_factors": self.risk_factors,
             "requires_verification": self.requires_verification,
             "policy_override_applied": self.policy_override_applied,
             "status": self.status.value,
         }
+
 
 
 class HybridRiskService:
@@ -225,6 +229,75 @@ class HybridRiskService:
             final_score = max(final_score, 85)
             reasons.append("COMPLIANCE POLICY: Mandatory dual-approval threshold triggered for transfers >= $50,000")
 
+        # --- STEP 4: Structured Explainable Risk Factors Breakdown ---
+        factors: List[Dict[str, Any]] = []
+
+        is_new_recip = getattr(tx, "is_new_beneficiary", False) or tx.recipient.lower().startswith("new ")
+        if is_new_recip:
+            factors.append({
+                "factor": "New Beneficiary",
+                "points": 25,
+                "severity": "MEDIUM",
+                "description": "First-time transfer to newly added recipient within cooling-off safety window (+25 pts)",
+            })
+            reasons.append("New beneficiary: cooling-off safety checks applied (+25)")
+            if not policy_override:
+                final_score = min(99, final_score + 25)
+
+        if tx.amount >= 10000:
+            factors.append({
+                "factor": "Unusually Large Amount",
+                "points": 45,
+                "severity": "CRITICAL",
+                "description": f"Transaction amount (${tx.amount:,.2f}) significantly exceeds typical account median (+45 pts)",
+            })
+        elif tx.amount >= 3000:
+            factors.append({
+                "factor": "Elevated Transfer Amount",
+                "points": 20,
+                "severity": "MEDIUM",
+                "description": f"Transfer amount (${tx.amount:,.2f}) is above standard daily median (+20 pts)",
+            })
+        elif tx.amount >= 1000:
+            factors.append({
+                "factor": "Moderate Transfer Size",
+                "points": 10,
+                "severity": "LOW",
+                "description": f"Transfer size (${tx.amount:,.2f}) exceeds routine baseline (+10 pts)",
+            })
+
+        if tx.is_new_device:
+            factors.append({
+                "factor": "Unfamiliar Device",
+                "points": 30,
+                "severity": "HIGH",
+                "description": f"Session originated from unverified hardware fingerprint ({tx.device_name}) (+30 pts)",
+            })
+
+        if tx.is_unusual_location:
+            factors.append({
+                "factor": "Unusual Geolocation",
+                "points": 20,
+                "severity": "HIGH",
+                "description": f"Access detected from anomalous geopolitical zone (IP: {tx.ip_address}) (+20 pts)",
+            })
+
+        if user_history and len(user_history) >= 3:
+            factors.append({
+                "factor": "Repeated Transfers in Short Period",
+                "points": 15,
+                "severity": "MEDIUM",
+                "description": "High velocity: multiple successive outgoing transfers detected in short monitoring interval (+15 pts)",
+            })
+
+        if is_anomaly:
+            factors.append({
+                "factor": "Statistical Anomaly (Isolation Forest)",
+                "points": 20,
+                "severity": "HIGH",
+                "description": f"Machine learning anomaly detector flagged deviation from baseline (Score: {anomaly_score:.3f}) (+20 pts)",
+            })
+
         # Clamp final score
         final_score = max(1, min(99 if not is_emergency_mode else 100, final_score))
 
@@ -264,6 +337,7 @@ class HybridRiskService:
             requires_verification=requires_verification,
             policy_override_applied=policy_override,
             status=status,
+            risk_factors=factors,
         )
 
 

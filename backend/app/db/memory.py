@@ -276,11 +276,29 @@ class InMemoryRepository(BaseRepository):
         final_score = ml_assessment.risk_score
         risk_level = ml_assessment.risk_level
         reasons = list(ml_assessment.assessment_reasons)
+        factors = list(ml_assessment.risk_factors)
 
         # 5. Deterministic Security Policy Enforcement
         is_blocked = False
         requires_verification = False
         block_reasons = []
+
+        # Feature 1: New Beneficiary Detection & Cooling-Off Check
+        prior_recipients = {t.recipient.strip().lower() for t in user_history}
+        is_first_time_recip = tx_in.recipient.strip().lower() not in prior_recipients
+        is_new_beneficiary = getattr(tx_in, "is_new_beneficiary", False) or is_first_time_recip
+        cooling_off_active = False
+
+        if is_new_beneficiary:
+            new_beneficiary_limit = getattr(policy, "new_beneficiary_limit_cents", 100000)
+            if amount_cents > new_beneficiary_limit:
+                cooling_off_active = True
+                requires_verification = True
+                cooling_hours = getattr(policy, "cooling_off_period_hours", 24)
+                reasons.append(
+                    f"NEW BENEFICIARY COOLING-OFF: Initial transfer to newly added recipient exceeding "
+                    f"${cents_to_dollars(new_beneficiary_limit):,.2f} requires step-up verification and {cooling_hours}h cooling-off window."
+                )
 
         # Policy 5a: Emergency Mode Freeze
         if emergency_status.is_active:
@@ -347,6 +365,9 @@ class InMemoryRepository(BaseRepository):
             risk_level=risk_level,
             risk_score=final_score,
             risk_reasons=final_reasons,
+            risk_factors=factors,
+            is_new_beneficiary=is_new_beneficiary,
+            cooling_off_active=cooling_off_active,
             created_at=now_str,
             updated_at=now_str,
             notes=tx_in.notes,
@@ -355,6 +376,8 @@ class InMemoryRepository(BaseRepository):
                 "device": tx_in.device_name or "Web Client",
                 "is_unusual_location": tx_in.is_unusual_location,
                 "is_new_device": tx_in.is_new_device,
+                "is_new_beneficiary": is_new_beneficiary,
+                "cooling_off_active": cooling_off_active,
                 "policy_timezone": policy.timezone,
                 "idempotency_key": tx_in.idempotency_key,
             },
@@ -846,3 +869,37 @@ class InMemoryRepository(BaseRepository):
     async def list_audit_events(self, user_id: str, limit: int = 50) -> List[AuditEvent]:
         items = [a for a in self._audit_logs if a.user_id == user_id or user_id == "admin"]
         return items[:limit]
+
+    # --- Feature 1: New Beneficiary & Scam Reporting ---
+    async def report_suspicious_recipient(
+        self, user: UserContext, recipient: str, reason: str, details: Optional[str] = None
+    ) -> dict:
+        now_str = datetime.now(timezone.utc).isoformat()
+        audit_id = f"audit_{uuid.uuid4().hex[:10]}"
+        await self.record_audit_event(AuditEvent(
+            id=audit_id,
+            user_id=user.user_id,
+            action="REPORT_SUSPICIOUS_RECIPIENT",
+            resource_id=f"recipient:{recipient}",
+            outcome="FLAGGED",
+            timestamp=now_str,
+            details={"recipient": recipient, "reason": reason, "details": details},
+        ))
+
+        notif = NotificationItem(
+            id=f"notif_{uuid.uuid4().hex[:10]}",
+            user_id=user.user_id,
+            type=NotificationType.SECURITY_ALERT,
+            title="Suspicious Recipient Reported",
+            message=f"You reported '{recipient}' ({reason}). It has been added to your protection watchlist and flagged for fraud operations review.",
+            created_at=now_str,
+            metadata={"recipient": recipient, "reason": reason},
+        )
+        await self.add_notification(notif)
+
+        return {
+            "status": "reported",
+            "recipient": recipient,
+            "message": f"Recipient '{recipient}' successfully reported and flagged for fraud investigation.",
+        }
+

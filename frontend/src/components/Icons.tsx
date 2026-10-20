@@ -264,3 +264,31 @@ export const FileText = createIcon(
   </>
 );
 export const Check = createIcon(<polyline points="20 6 9 17 4 12" />);
+export const User = createIcon(
+  <>
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </>
+);
+export const UserCheck = createIcon(
+  <>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <polyline points="16 11 18 13 22 9" />
+  </>
+);
+export const CreditCard = createIcon(
+  <>
+    <rect width="20" height="14" x="2" y="5" rx="2" />
+    <line x1="2" x2="22" y1="10" y2="10" />
+  </>
+);
+export const Snowflake = createIcon(
+  <>
+    <line x1="12" x2="12" y1="2" y2="22" />
+    <line x1="2" x2="22" y1="12" y2="12" />
+    <line x1="4.93" x2="19.07" y1="4.93" y2="19.07" />
+    <line x1="19.07" x2="4.93" y1="4.93" y2="19.07" />
+  </>
+);
+

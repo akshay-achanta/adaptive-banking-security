@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Send, AlertTriangle, ShieldCheck, Zap, Globe, Laptop } from './Icons';
+import React, { useState, useMemo } from 'react';
+import { X, Send, AlertTriangle, ShieldCheck, Zap, Globe, Laptop, UserCheck, Clock } from './Icons';
 import { TransactionCategory, TransactionCreatePayload } from '../types';
 
 interface NewTransactionModalProps {
@@ -17,10 +17,84 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
   const [recipient, setRecipient] = useState<string>('Global Cloud Services Sydney');
   const [category, setCategory] = useState<TransactionCategory>('PAYMENT');
   const [notes, setNotes] = useState<string>('Development cloud hosting invoice');
+  const [isNewBeneficiary, setIsNewBeneficiary] = useState<boolean>(false);
   const [isUnusualLocation, setIsUnusualLocation] = useState<boolean>(false);
   const [isNewDevice, setIsNewDevice] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Live Explainable Risk Factor breakdown calculation
+  const explainableRisk = useMemo(() => {
+    const numAmount = parseFloat(amount) || 0;
+    const factors: Array<{ name: string; points: number; color: string; desc: string }> = [];
+    let baseScore = 8; // baseline score
+
+    if (isNewBeneficiary) {
+      factors.push({
+        name: 'New Beneficiary',
+        points: 25,
+        color: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+        desc: 'First transfer to newly added recipient (+25)',
+      });
+      baseScore += 25;
+    }
+
+    if (numAmount >= 10000) {
+      factors.push({
+        name: 'Unusually Large Amount',
+        points: 45,
+        color: 'text-rose-400 bg-rose-500/10 border-rose-500/30',
+        desc: 'Transaction size >= $10,000 (+45)',
+      });
+      baseScore += 45;
+    } else if (numAmount >= 3000) {
+      factors.push({
+        name: 'Elevated Amount',
+        points: 20,
+        color: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+        desc: 'Transfer amount exceeds $3,000 baseline (+20)',
+      });
+      baseScore += 20;
+    } else if (numAmount >= 1000) {
+      factors.push({
+        name: 'Moderate Amount',
+        points: 10,
+        color: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
+        desc: 'Transfer amount >= $1,000 (+10)',
+      });
+      baseScore += 10;
+    }
+
+    if (isNewDevice) {
+      factors.push({
+        name: 'Unfamiliar Device',
+        points: 30,
+        color: 'text-purple-400 bg-purple-500/10 border-purple-500/30',
+        desc: 'Session from unrecognized hardware fingerprint (+30)',
+      });
+      baseScore += 30;
+    }
+
+    if (isUnusualLocation) {
+      factors.push({
+        name: 'Unusual Geolocation',
+        points: 20,
+        color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
+        desc: 'Foreign IP connection detected (+20)',
+      });
+      baseScore += 20;
+    }
+
+    const finalScore = Math.min(100, baseScore);
+    const riskLevel = finalScore >= 75 ? 'CRITICAL' : finalScore >= 50 ? 'HIGH' : finalScore >= 30 ? 'MEDIUM' : 'LOW';
+
+    return {
+      score: finalScore,
+      level: riskLevel,
+      factors,
+      isCoolingOff: isNewBeneficiary && numAmount > 1000,
+    };
+  }, [amount, isNewBeneficiary, isNewDevice, isUnusualLocation]);
 
   if (!isOpen) return null;
 
@@ -41,6 +115,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
         recipient,
         category,
         notes: notes || undefined,
+        is_new_beneficiary: isNewBeneficiary,
         is_unusual_location: isUnusualLocation,
         is_new_device: isNewDevice,
         ip_address: isUnusualLocation ? '185.220.101.5' : '110.145.20.10',
@@ -54,34 +129,45 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
     }
   };
 
-  const applyPreset = (preset: 'low' | 'high' | 'crypto') => {
+  const applyPreset = (preset: 'low' | 'new_bene' | 'crypto' | 'high') => {
     if (preset === 'low') {
       setAmount('42.50');
       setRecipient('Sydney Harbour Bakery');
       setCategory('PAYMENT');
       setNotes('Routine daily contactless payment');
+      setIsNewBeneficiary(false);
       setIsUnusualLocation(false);
       setIsNewDevice(false);
-    } else if (preset === 'high') {
-      setAmount('16500.00');
-      setRecipient('Offshore Capital Syndicate');
+    } else if (preset === 'new_bene') {
+      setAmount('2500.00');
+      setRecipient('Acme Industrial Equipment Pty');
       setCategory('TRANSFER');
-      setNotes('Urgent cross-border wire transfer');
-      setIsUnusualLocation(true);
-      setIsNewDevice(true);
+      setNotes('First-time supplier invoice payment');
+      setIsNewBeneficiary(true);
+      setIsUnusualLocation(false);
+      setIsNewDevice(false);
     } else if (preset === 'crypto') {
       setAmount('4800.00');
       setRecipient('Decentralized Liquidity Pool');
       setCategory('INVESTMENT');
       setNotes('Digital asset purchase');
+      setIsNewBeneficiary(false);
       setIsUnusualLocation(false);
+      setIsNewDevice(true);
+    } else if (preset === 'high') {
+      setAmount('16500.00');
+      setRecipient('Offshore Capital Syndicate');
+      setCategory('TRANSFER');
+      setNotes('Urgent cross-border wire transfer');
+      setIsNewBeneficiary(true);
+      setIsUnusualLocation(true);
       setIsNewDevice(true);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="relative w-full max-w-lg rounded-2xl border border-slate-700/80 bg-slate-900 p-6 shadow-2xl shadow-black/80 font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+      <div className="relative w-full max-w-lg rounded-2xl border border-slate-700/80 bg-slate-900 p-6 shadow-2xl shadow-black/80 font-sans my-8">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -96,35 +182,42 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
             <Zap className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Simulate Banking Transaction</h2>
-            <p className="text-xs text-slate-400">Triggers real-time adaptive risk telemetry evaluation</p>
+            <h2 className="text-lg font-bold text-white">Send Money / New Transfer</h2>
+            <p className="text-xs text-slate-400">Adaptive Risk Engine & New Beneficiary Protection</p>
           </div>
         </div>
 
         {/* Quick Presets */}
-        <div className="mb-4 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between text-xs">
-          <span className="text-slate-400 font-mono text-[11px]">Quick Scenarios:</span>
-          <div className="flex space-x-1.5">
+        <div className="mb-4 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between text-xs flex-wrap gap-2">
+          <span className="text-slate-400 font-mono text-[11px]">Quick Demo Presets:</span>
+          <div className="flex space-x-1.5 flex-wrap">
             <button
               type="button"
               onClick={() => applyPreset('low')}
               className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold"
             >
-              Low-Risk $42
+              Standard $42
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset('new_bene')}
+              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 text-[11px] font-semibold"
+            >
+              ⭐ New Recipient $2.5K
             </button>
             <button
               type="button"
               onClick={() => applyPreset('crypto')}
-              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 text-[11px] font-semibold"
+              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-purple-400 border border-purple-500/30 text-[11px] font-semibold"
             >
-              Medium $4.8K
+              New Device $4.8K
             </button>
             <button
               type="button"
               onClick={() => applyPreset('high')}
               className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-rose-400 border border-rose-500/30 text-[11px] font-semibold"
             >
-              Critical $16.5K
+              High Risk $16.5K
             </button>
           </div>
         </div>
@@ -170,15 +263,55 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-slate-300 font-medium mb-1">Recipient / Merchant</label>
+            <label className="block text-slate-300 font-medium mb-1">Recipient / Beneficiary Name</label>
             <input
               type="text"
               required
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="e.g. Acme Corp or Satoshi Wire"
-              className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+              className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
             />
+          </div>
+
+          {/* Feature 1: New Beneficiary Toggle & Safeguard */}
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div className="flex items-center space-x-2.5">
+                <UserCheck className="w-4 h-4 text-amber-400" />
+                <div>
+                  <div className="text-slate-200 font-medium">Newly Added Beneficiary</div>
+                  <div className="text-[11px] text-slate-400">First-time transfer to this recipient</div>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={isNewBeneficiary}
+                onChange={(e) => setIsNewBeneficiary(e.target.checked)}
+                className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-700 focus:ring-amber-500"
+              />
+            </label>
+
+            {/* Warning before first transfer */}
+            {isNewBeneficiary && (
+              <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] space-y-1">
+                <div className="flex items-center space-x-1.5 font-semibold">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>New Recipient Safeguard Warning</span>
+                </div>
+                <p>
+                  This is your first transfer to <strong>{recipient || 'this recipient'}</strong>. Ensure you have independently verified their account information to protect against impersonation scams.
+                </p>
+                {explainableRisk.isCoolingOff && (
+                  <div className="pt-1.5 mt-1 border-t border-amber-500/20 text-rose-300 flex items-start space-x-1.5">
+                    <Clock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong>24-Hour Cooling-Off Window:</strong> Amounts over $1,000.00 to new recipients require 2FA authorization and are held for review.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -188,51 +321,96 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Settlement for cloud services"
-              className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+              className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-xs"
             />
           </div>
 
           {/* Anomaly simulation toggles */}
           <div className="pt-2 border-t border-slate-800 space-y-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
-              Behavioral & Telemetry Anomaly Injections
+              Behavioral & Telemetry Signals
             </span>
 
-            <label className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors">
-              <div className="flex items-center space-x-2.5">
-                <Globe className="w-4 h-4 text-cyan-400" />
-                <div>
-                  <div className="text-slate-200 font-medium">Unusual Geolocation / Foreign IP</div>
-                  <div className="text-[11px] text-slate-400">Simulate request originating outside habitual jurisdiction</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors">
+                <div className="flex items-center space-x-2">
+                  <Globe className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-slate-200 font-medium text-[11px]">Unusual Location</div>
+                    <div className="text-[10px] text-slate-400">Foreign IP (+20 pts)</div>
+                  </div>
                 </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={isUnusualLocation}
-                onChange={(e) => setIsUnusualLocation(e.target.checked)}
-                className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500"
-              />
-            </label>
+                <input
+                  type="checkbox"
+                  checked={isUnusualLocation}
+                  onChange={(e) => setIsUnusualLocation(e.target.checked)}
+                  className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500"
+                />
+              </label>
 
-            <label className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors">
-              <div className="flex items-center space-x-2.5">
-                <Laptop className="w-4 h-4 text-purple-400" />
-                <div>
-                  <div className="text-slate-200 font-medium">Unrecognized Hardware Fingerprint</div>
-                  <div className="text-[11px] text-slate-400">Flag browser headers as brand-new untrusted device</div>
+              <label className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors">
+                <div className="flex items-center space-x-2">
+                  <Laptop className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-slate-200 font-medium text-[11px]">Unrecognized Device</div>
+                    <div className="text-[10px] text-slate-400">Novel hardware (+30 pts)</div>
+                  </div>
                 </div>
+                <input
+                  type="checkbox"
+                  checked={isNewDevice}
+                  onChange={(e) => setIsNewDevice(e.target.checked)}
+                  className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Feature 2: Explainable Risk Decision Live Matrix Preview */}
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-1.5">
+                <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                <span className="font-semibold text-white text-xs">Explainable Risk Calculation Preview</span>
               </div>
-              <input
-                type="checkbox"
-                checked={isNewDevice}
-                onChange={(e) => setIsNewDevice(e.target.checked)}
-                className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500"
-              />
-            </label>
+              <div className="flex items-center space-x-1 font-mono text-xs">
+                <span className="text-slate-400">Score:</span>
+                <span
+                  className={`font-bold px-2 py-0.5 rounded text-[11px] ${
+                    explainableRisk.score >= 75
+                      ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                      : explainableRisk.score >= 50
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  }`}
+                >
+                  {explainableRisk.score}/100 ({explainableRisk.level})
+                </span>
+              </div>
+            </div>
+
+            {explainableRisk.factors.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {explainableRisk.factors.map((f, i) => (
+                  <span
+                    key={i}
+                    className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-md border text-[11px] font-mono ${f.color}`}
+                    title={f.desc}
+                  >
+                    <span>{f.name}:</span>
+                    <strong className="font-bold">+{f.points}</strong>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-400 mt-1">
+                Standard baseline activity. No high-risk anomaly points detected.
+              </p>
+            )}
           </div>
 
           {/* Actions */}
-          <div className="pt-4 flex items-center justify-end space-x-3">
+          <div className="pt-2 flex items-center justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
@@ -246,7 +424,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
               className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold shadow-lg shadow-blue-900/30 transition-all disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'Evaluating Risk...' : 'Execute Transaction'}</span>
+              <span>{isSubmitting ? 'Evaluating Risk...' : 'Execute Transfer'}</span>
             </button>
           </div>
         </form>
