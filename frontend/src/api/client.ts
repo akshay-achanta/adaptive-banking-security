@@ -20,9 +20,18 @@ import {
   ReportRecipientResponse,
 } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined 
-  ? import.meta.env.VITE_API_BASE_URL 
-  : (import.meta.env.PROD ? '' : 'http://localhost:8000');
+const getBaseUrl = (): string => {
+  // If loaded over HTTPS (e.g. CloudFront), always use relative URL to prevent browser Mixed Content blocking
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return '';
+  }
+  if (import.meta.env.VITE_API_BASE_URL !== undefined && import.meta.env.VITE_API_BASE_URL !== '') {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  return import.meta.env.PROD ? '' : 'http://localhost:8000';
+};
+
+const BASE_URL = getBaseUrl();
 
 class ApiClient {
   private getHeaders(): HeadersInit {

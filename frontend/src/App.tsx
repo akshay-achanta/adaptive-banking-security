@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { Dashboard } from './pages/Dashboard';
 import { TransactionsPage } from './pages/TransactionsPage';
@@ -116,7 +116,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
         <Navbar health={health} onOpenNewTransaction={() => setIsNewTxModalOpen(true)} />
 
@@ -208,7 +208,7 @@ export const App: React.FC = () => {
           onSuccess={() => refreshAll()}
         />
       </div>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 export default App;

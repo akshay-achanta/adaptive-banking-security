@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fig. 5 - Random Forest Confusion Matrix & Baseline Model Comparison</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #030712;
+      color: #e5e7eb;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      padding: 20px 16px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      height: auto;
+      margin: 0;
+    }
+    .container {
+      width: 100%;
+      max-width: 1020px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+    }
+    
+    /* Header */
+    .header {
+      background: linear-gradient(180deg, #161b22 0%, #0d1117 100%);
+      padding: 16px 22px;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .title-group h1 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f0f6fc;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .fig-badge {
+      background: #1f6feb;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .title-group p {
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 3px;
+    }
+    .meta-badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      font-size: 10.5px;
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-weight: 500;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      border: 1px solid transparent;
+    }
+    .badge-cyan {
+      background: rgba(56, 189, 248, 0.12);
+      color: #38bdf8;
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+    .badge-emerald {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+    .badge-purple {
+      background: rgba(168, 85, 247, 0.12);
+      color: #c084fc;
+      border-color: rgba(168, 85, 247, 0.3);
+    }
+
+    /* Metric Cards Banner */
+    .metrics-banner {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      padding: 14px 20px;
+      background: #090d13;
+      border-bottom: 1px solid #21262d;
+    }
+    .metric-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px 12px;
+      position: relative;
+    }
+    .metric-card.champion {
+      border-color: rgba(16, 185, 129, 0.4);
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, #161b22 100%);
+    }
+    .metric-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #8b949e;
+      font-weight: 600;
+    }
+    .metric-value-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin: 4px 0 2px 0;
+    }
+    .metric-val {
+      font-size: 20px;
+      font-weight: 800;
+      color: #f0f6fc;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      letter-spacing: -0.02em;
+    }
+    .metric-delta {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #10b981;
+    }
+    .metric-sub {
+      font-size: 10px;
+      color: #6e7681;
+    }
+
+    /* Comparison Section */
+    .comparison-section {
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .model-panel {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+    .model-panel.rf-panel {
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 4px 20px rgba(56, 189, 248, 0.06);
+    }
+    .model-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #21262d;
+    }
+    .model-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f0f6fc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .model-tag {
+      font-size: 9.5px;
+      text-transform: uppercase;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+    }
+    .tag-selected {
+      background: #10b981;
+      color: #042f2e;
+    }
+    .tag-baseline {
+      background: #4b5563;
+      color: #f3f4f6;
+    }
+    .model-stat-pill {
+      font-size: 11.5px;
+      color: #8b949e;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+    }
+
+    /* Confusion Matrix Heatmap */
+    .matrix-wrapper {
+      margin: 4px 0 8px 0;
+    }
+    .matrix-labels-top {
+      display: grid;
+      grid-template-columns: 78px 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 6px;
+      text-align: center;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .matrix-row {
+      display: grid;
+      grid-template-columns: 78px 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    .row-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #8b949e;
+      text-align: right;
+      padding-right: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      line-height: 1.3;
+    }
+    .matrix-cell {
+      border-radius: 8px;
+      padding: 12px 8px;
+      text-align: center;
+      border: 1px solid transparent;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 76px;
+    }
+    .cell-value {
+      font-size: 24px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .cell-sub {
+      font-size: 9.5px;
+      margin-top: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .cell-ratio {
+      font-size: 9px;
+      opacity: 0.85;
+      margin-top: 2px;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+    }
+
+    /* Color Schemes for Random Forest */
+    .rf-tn {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.28) 0%, rgba(5, 150, 105, 0.18) 100%);
+      border-color: rgba(16, 185, 129, 0.5);
+      color: #34d399;
+    }
+    .rf-tn .cell-value { color: #ecfdf5; text-shadow: 0 0 10px rgba(52, 211, 153, 0.4); }
+    
+    .rf-fp {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.35);
+      color: #fbbf24;
+    }
+    .rf-fp .cell-value { color: #fef3c7; }
+
+    .rf-fn {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.35);
+      color: #f87171;
+    }
+    .rf-fn .cell-value { color: #fee2e2; }
+
+    .rf-tp {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.3) 0%, rgba(14, 165, 233, 0.2) 100%);
+      border-color: rgba(56, 189, 248, 0.55);
+      color: #38bdf8;
+    }
+    .rf-tp .cell-value { color: #f0f9ff; text-shadow: 0 0 10px rgba(56, 189, 248, 0.4); }
+
+    /* Color Schemes for Baseline Logistic Regression */
+    .lr-tn {
+      background: rgba(55, 65, 81, 0.35);
+      border-color: rgba(75, 85, 99, 0.4);
+      color: #9ca3af;
+    }
+    .lr-tn .cell-value { color: #e5e7eb; }
+
+    .lr-fp {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+    .lr-fp .cell-value { color: #fecaca; }
+
+    .lr-fn {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+    .lr-fn .cell-value { color: #fecaca; }
+
+    .lr-tp {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: rgba(59, 130, 246, 0.35);
+      color: #93c5fd;
+    }
+    .lr-tp .cell-value { color: #dbeafe; }
+
+    /* Summary Bar below each matrix */
+    .matrix-footer {
+      margin-top: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #090d13;
+      border: 1px solid #21262d;
+      display: flex;
+      justify-content: space-around;
+      font-size: 10.5px;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+    }
+    .matrix-footer span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .footer-label {
+      color: #8b949e;
+    }
+    .footer-val {
+      font-weight: 700;
+      color: #f0f6fc;
+    }
+
+    /* Comparison Table Section */
+    .table-section {
+      padding: 0 20px 16px 20px;
+    }
+    .table-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #c9d1d9;
+      margin-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      background: #161b22;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #30363d;
+    }
+    th {
+      background: #090d13;
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #8b949e;
+      border-bottom: 1px solid #30363d;
+      font-weight: 600;
+    }
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #21262d;
+      color: #c9d1d9;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+    }
+    tr.highlight-row {
+      background: rgba(16, 185, 129, 0.06);
+    }
+    tr.highlight-row td {
+      color: #f0f6fc;
+      font-weight: 600;
+    }
+    .text-emerald { color: #10b981; }
+    .text-cyan { color: #38bdf8; }
+    .text-amber { color: #fbbf24; }
+    .text-rose { color: #f87171; }
+    .text-muted { color: #8b949e; }
+
+    /* Features row */
+    .features-row {
+      padding: 10px 20px;
+      background: #090d13;
+      border-top: 1px solid #21262d;
+      border-bottom: 1px solid #21262d;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .features-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #8b949e;
+      font-weight: 700;
+    }
+    .feature-chip {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 9.5px;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      color: #c9d1d9;
+    }
+    .feature-chip.cat {
+      border-color: rgba(168, 85, 247, 0.4);
+      color: #d8b4fe;
+    }
+
+    /* Formal Caption */
+    .caption-box {
+      padding: 12px 20px;
+      background: #0d1117;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #8b949e;
+    }
+    .caption-box strong {
+      color: #f0f6fc;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="title-group">
+        <h1>
+          <span class="fig-badge">Fig. 5</span>
+          Random Forest Confusion Matrix & Baseline Model Comparison
+        </h1>
+        <p>Empirical evaluation of the production supervised classifier on the holdout test partition (N = 900 transactions)</p>
+      </div>
+      <div class="meta-badges">
+        <span class="badge badge-cyan">Model: v1.2.0</span>
+        <span class="badge badge-emerald">Dataset: 6,000 txns (70/15/15 Split)</span>
+        <span class="badge badge-purple">Production Hybrid Engine</span>
+      </div>
+    </div>
+
+    <!-- Top Metric Highlights -->
+    <div class="metrics-banner">
+      <div class="metric-card champion">
+        <div class="metric-title">Test F1-Score</div>
+        <div class="metric-value-row">
+          <div class="metric-val">98.29%</div>
+          <div class="metric-delta">▲ +17.5%</div>
+        </div>
+        <div class="metric-sub">vs. 80.77% Baseline LR</div>
+      </div>
+      <div class="metric-card champion">
+        <div class="metric-title">Precision (Cleanliness)</div>
+        <div class="metric-value-row">
+          <div class="metric-val">98.85%</div>
+          <div class="metric-delta">▲ +28.9%</div>
+        </div>
+        <div class="metric-sub">Only 1 False Positive</div>
+      </div>
+      <div class="metric-card champion">
+        <div class="metric-title">Recall (Sensitivity)</div>
+        <div class="metric-value-row">
+          <div class="metric-val">97.73%</div>
+          <div class="metric-delta">▲ +2.3%</div>
+        </div>
+        <div class="metric-sub">86 of 88 Frauds Caught</div>
+      </div>
+      <div class="metric-card champion">
+        <div class="metric-title">False Positive Cut</div>
+        <div class="metric-value-row">
+          <div class="metric-val">-97.2%</div>
+          <div class="metric-delta">▼ 36 → 1</div>
+        </div>
+        <div class="metric-sub">Eliminates User Friction</div>
+      </div>
+      <div class="metric-card champion">
+        <div class="metric-title">PR-AUC (Imbalance)</div>
+        <div class="metric-value-row">
+          <div class="metric-val">0.9997</div>
+          <div class="metric-delta">▲ +0.042</div>
+        </div>
+        <div class="metric-sub">vs. 0.9581 Baseline</div>
+      </div>
+    </div>
+
+    <!-- Side-by-Side Confusion Matrices -->
+    <div class="comparison-section">
+      
+      <!-- Left: Random Forest (Production) -->
+      <div class="model-panel rf-panel">
+        <div class="model-header">
+          <div class="model-name">
+            <span>Random Forest Classifier</span>
+            <span class="model-tag tag-selected">Production Champion</span>
+          </div>
+          <div class="model-stat-pill">Accuracy: 99.67%</div>
+        </div>
+
+        <div class="matrix-wrapper">
+          <div class="matrix-labels-top">
+            <div></div>
+            <div>Pred. Normal</div>
+            <div>Pred. Fraud</div>
+          </div>
+
+          <!-- Row 1: Actual Normal -->
+          <div class="matrix-row">
+            <div class="row-label">Actual<br>Normal</div>
+            <div class="matrix-cell rf-tn">
+              <div class="cell-value">811</div>
+              <div class="cell-sub">True Negative (TN)</div>
+              <div class="cell-ratio">99.88% of Normal</div>
+            </div>
+            <div class="matrix-cell rf-fp">
+              <div class="cell-value">1</div>
+              <div class="cell-sub">False Positive (FP)</div>
+              <div class="cell-ratio">0.12% False Alarm</div>
+            </div>
+          </div>
+
+          <!-- Row 2: Actual Fraud -->
+          <div class="matrix-row">
+            <div class="row-label">Actual<br>Fraud</div>
+            <div class="matrix-cell rf-fn">
+              <div class="cell-value">2</div>
+              <div class="cell-sub">False Negative (FN)</div>
+              <div class="cell-ratio">2.27% Missed</div>
+            </div>
+            <div class="matrix-cell rf-tp">
+              <div class="cell-value">86</div>
+              <div class="cell-sub">True Positive (TP)</div>
+              <div class="cell-ratio">97.73% Fraud Caught</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-footer">
+          <span><span class="footer-label">F1:</span> <span class="footer-val text-emerald">0.9829</span></span>
+          <span><span class="footer-label">Precision:</span> <span class="footer-val text-cyan">98.85%</span></span>
+          <span><span class="footer-label">Recall:</span> <span class="footer-val text-emerald">97.73%</span></span>
+          <span><span class="footer-label">ROC-AUC:</span> <span class="footer-val text-cyan">1.0000</span></span>
+        </div>
+      </div>
+
+      <!-- Right: Logistic Regression (Baseline) -->
+      <div class="model-panel">
+        <div class="model-header">
+          <div class="model-name">
+            <span>Logistic Regression</span>
+            <span class="model-tag tag-baseline">Baseline Reference</span>
+          </div>
+          <div class="model-stat-pill">Accuracy: 95.56%</div>
+        </div>
+
+        <div class="matrix-wrapper">
+          <div class="matrix-labels-top">
+            <div></div>
+            <div>Pred. Normal</div>
+            <div>Pred. Fraud</div>
+          </div>
+
+          <!-- Row 1: Actual Normal -->
+          <div class="matrix-row">
+            <div class="row-label">Actual<br>Normal</div>
+            <div class="matrix-cell lr-tn">
+              <div class="cell-value">776</div>
+              <div class="cell-sub">True Negative (TN)</div>
+              <div class="cell-ratio">95.57% of Normal</div>
+            </div>
+            <div class="matrix-cell lr-fp">
+              <div class="cell-value">36</div>
+              <div class="cell-sub">False Positive (FP)</div>
+              <div class="cell-ratio">4.43% False Alarm</div>
+            </div>
+          </div>
+
+          <!-- Row 2: Actual Fraud -->
+          <div class="matrix-row">
+            <div class="row-label">Actual<br>Fraud</div>
+            <div class="matrix-cell lr-fn">
+              <div class="cell-value">4</div>
+              <div class="cell-sub">False Negative (FN)</div>
+              <div class="cell-ratio">4.55% Missed</div>
+            </div>
+            <div class="matrix-cell lr-tp">
+              <div class="cell-value">84</div>
+              <div class="cell-sub">True Positive (TP)</div>
+              <div class="cell-ratio">95.45% Fraud Caught</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-footer">
+          <span><span class="footer-label">F1:</span> <span class="footer-val text-muted">0.8077</span></span>
+          <span><span class="footer-label">Precision:</span> <span class="footer-val text-rose">70.00%</span></span>
+          <span><span class="footer-label">Recall:</span> <span class="footer-val text-muted">95.45%</span></span>
+          <span><span class="footer-label">ROC-AUC:</span> <span class="footer-val text-muted">0.9942</span></span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Comparative Metrics Table -->
+    <div class="table-section">
+      <div class="table-title">
+        <span>Detailed Holdout Test Partition Performance Breakdown (N = 900)</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Model Architecture</th>
+            <th>F1-Score</th>
+            <th>Precision</th>
+            <th>Recall</th>
+            <th>ROC-AUC</th>
+            <th>PR-AUC</th>
+            <th>False Positives (FP)</th>
+            <th>False Negatives (FN)</th>
+            <th>Production Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight-row">
+            <td><strong>Random Forest (v1.2.0)</strong></td>
+            <td class="text-emerald">0.9829</td>
+            <td class="text-cyan">98.85%</td>
+            <td class="text-emerald">97.73%</td>
+            <td class="text-cyan">1.0000</td>
+            <td class="text-emerald">0.9997</td>
+            <td class="text-emerald">1 (0.12%)</td>
+            <td class="text-emerald">2 (2.27%)</td>
+            <td><span class="model-tag tag-selected">DEPLOYED TO ECS</span></td>
+          </tr>
+          <tr>
+            <td>Logistic Regression (Baseline)</td>
+            <td>0.8077</td>
+            <td class="text-rose">70.00%</td>
+            <td>95.45%</td>
+            <td>0.9942</td>
+            <td>0.9581</td>
+            <td class="text-rose">36 (4.43%)</td>
+            <td class="text-rose">4 (4.55%)</td>
+            <td><span class="model-tag tag-baseline">BASELINE ARCHIVE</span></td>
+          </tr>
+          <tr>
+            <td style="color: #8b949e;"><strong>Delta (Empirical Lift)</strong></td>
+            <td class="text-emerald"><strong>+0.1752 (+17.5%)</strong></td>
+            <td class="text-emerald"><strong>+28.85%</strong></td>
+            <td class="text-emerald"><strong>+2.28%</strong></td>
+            <td class="text-cyan"><strong>+0.0058</strong></td>
+            <td class="text-emerald"><strong>+0.0416</strong></td>
+            <td class="text-emerald"><strong>-35 FP (-97.2%)</strong></td>
+            <td class="text-emerald"><strong>-2 FN (-50.0%)</strong></td>
+            <td class="text-emerald"><strong>Optimal Tradeoff</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Features Bar -->
+    <div class="features-row">
+      <span class="features-label">Feature Vector (8 Inputs):</span>
+      <span class="feature-chip">amount</span>
+      <span class="feature-chip">transaction_hour</span>
+      <span class="feature-chip">recent_freq_24h</span>
+      <span class="feature-chip">spending_deviation</span>
+      <span class="feature-chip">merchant_novelty</span>
+      <span class="feature-chip">location_change</span>
+      <span class="feature-chip">device_novelty</span>
+      <span class="feature-chip cat">category (one-hot)</span>
+    </div>
+
+    <!-- Formal Academic Caption -->
+    <div class="caption-box">
+      <strong>Fig. 5: Confusion matrix and empirical performance comparison of the production Random Forest classifier against baseline Logistic Regression on the holdout test set (N=900, 88 fraud / 812 legitimate).</strong> The ensemble Random Forest model achieves an exceptional 98.29% F1-score with only 1 false positive across 812 legitimate transactions, drastically reducing operational verification burden and false-alarm customer friction compared to the baseline (36 false positives), while concurrently detecting 86 of 88 fraudulent transactions (97.73% recall).
+    </div>
+
+  </div>
+
+</body>
+</html>
