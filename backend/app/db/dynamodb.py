@@ -516,13 +516,11 @@ class DynamoDBRepository(BaseRepository):
             id=f"verif_{uuid.uuid4().hex[:10]}",
             transaction_id=tx.id,
             user_id=tx.user_id,
-            amount=tx.amount,
-            recipient=tx.recipient,
-            category=tx.category.value,
-            risk_score=tx.risk_score,
             status="PENDING",
+            risk_score=tx.risk_score,
+            risk_reasons=tx.risk_reasons or ["Requires two-factor authorization"],
             created_at=now.isoformat(),
-            expires_at=(now + timedelta(minutes=15)).isoformat(),
+            expires_at=(now + timedelta(hours=24)).isoformat(),
         )
         try:
             self.table_verifications.put_item(Item=_to_decimal(record.model_dump()))
